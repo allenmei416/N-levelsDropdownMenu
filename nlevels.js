@@ -53,8 +53,11 @@ class DisclosureNav {
   constructor(domNode) {
     this.rootNode = domNode;
     this.getVariableResult = null;
-    const mainMenuID = '#nlevels-top-menu'
-    this.menuArray = convertToArray(this.rootNode, mainMenuID);
+    this.mainMenuID = '#nlevels-top-menu';
+    this.mainMenuID2 = 'nlevels-top-menu';
+    this.menuArray = convertToArray(this.rootNode, this.mainMenuID);
+    this.lastOpenedButton = null;
+    this.lastOpenedSubButton = null;
     this.traverseArray(this.menuArray);   
   }  
   
@@ -141,9 +144,15 @@ class DisclosureNav {
       case 'ArrowUp':
       case 'ArrowLeft':
         keyboardEvent.preventDefault();
-        if (currentIndex > -1) {
+        if (currentIndex-1 > -1) {
           var prevIndex = Math.max(0, currentIndex - 1);
           nodeList[prevIndex].focus();
+        } else {
+          if(nodeList[0].parentNode.parentNode.id !==this.mainMenuID2){
+            nodeList[0].parentNode.parentNode.parentNode.querySelector('button').focus();
+            var ulInfo = this.getVariables(this.menuArray, nodeList[0].parentNode.id);
+            this.toggleExpand(ulInfo.openIndex, false, ulInfo);
+          }          
         }
         break;
       case 'ArrowDown':
@@ -169,67 +178,75 @@ class DisclosureNav {
     var ulInfo = this.getVariables(this.menuArray, event.target.parentNode.parentNode.id);
     var elementById = document.getElementById(event.target.parentNode.parentNode.id);
 
-    this.recursiveClose.call(this, elementById, ulInfo);
+    this.recursiveClose(elementById, ulInfo);
   }
     
   //recursive function called to close whether on click outside of menu or escape key pressed
   recursiveClose(elementById, ulInfo) {
+    
     var menuContainsFocus = elementById.contains(event.relatedTarget);
     if (!menuContainsFocus) {      
       this.toggleExpand(ulInfo.openIndex, false, ulInfo);
       var idHolder = elementById.id;
       ulInfo = this.getVariables(this.menuArray, elementById.parentNode.parentNode.id);
       elementById = document.getElementById(elementById.parentNode.parentNode.id);
-      if (idHolder !== 'nlevels-top-menu') {
-        this.recursiveClose.call(this, elementById, ulInfo);
+      if (idHolder !== this.mainMenuID2) {
+        this.recursiveClose(elementById, ulInfo);
       }
     }
   }
+  
+  closeSubmenu( ulInfo) {
+    this.toggleExpand(ulInfo.openIndex, false, ulInfo);
+    this.lastOpenedSubButton.focus();
+    this.lastOpenedSubButton = (this.lastOpenedSubButton.parentNode.parentNode.parentNode.querySelector('button'));
+    //this.lastOpenedSubButton = null;
+  }
 
-  onButtonClick(event) {    
+  onButtonClick(event) {   
     var ulInfo = this.getVariables(this.menuArray, event.target.parentNode.parentNode.id)
     var button = event.target;
+    if (button.parentNode.parentNode.id === this.mainMenuID2){
+      this.lastOpenedButton = button;
+    } 
+    this.lastOpenedSubButton = button;
     var buttonIndex = (ulInfo.levelNodes).indexOf(button);
     var buttonExpanded = button.getAttribute('aria-expanded') === 'true';
     this.toggleExpand(buttonIndex, !buttonExpanded, ulInfo);
   }
 
   onButtonKeyDown(event) {
-    var ulInfo = this.getVariables(this.menuArray, event.target.parentNode.parentNode.id);    
+    var ulInfo = this.getVariables(this.menuArray, event.target.parentNode.parentNode.id);
+    var ulInfo2 = this.getVariables(this.menuArray, event.target.parentNode.parentNode.parentNode.parentNode.id);
     var targetButtonIndex = ulInfo.levelNodes.indexOf(document.activeElement);
     // close on escape
     if (event.key === 'Escape') {
-      var elementById = document.getElementById(event.target.parentNode.parentNode.id);
-      this.recursiveClose(elementById, ulInfo);
+      this.closeSubmenu(ulInfo2);
     }
-    
-    // move focus into the open menu if the current menu is open
-    else if (
-      ulInfo.useArrowKeys &&
-      ulInfo.openIndex === targetButtonIndex &&
-      event.key === 'ArrowDown'
-    ) {      
-      event.preventDefault();
-      ulInfo.controlledNodes[ulInfo.openIndex].querySelector('a').focus();
-    }
-
+        
     // handle arrow key navigation between top-level buttons, if set
     else if (ulInfo.useArrowKeys) {
       this.controlFocusByKey(event, ulInfo.levelNodes, targetButtonIndex);
     }
   }
-
+  
   onLinkKeyDown(event) {
+    
     var ulInfo = this.getVariables(this.menuArray, event.target.parentNode.parentNode.id);
+    var ulInfo2 = this.getVariables(this.menuArray, event.target.parentNode.parentNode.parentNode.parentNode.id);
     var targetLinkIndex = ulInfo.levelNodes.indexOf(document.activeElement);
     // handle arrow key navigation between top-level buttons, if set
     if (ulInfo.useArrowKeys) {      
       this.controlFocusByKey(event, ulInfo.levelNodes, targetLinkIndex);
     }
+    if (event.key === 'Escape') {
+      this.closeSubmenu(ulInfo2);
+    }
   }
 
   onMenuKeyDown(event) {
     var ulInfo = this.getVariables(this.menuArray, event.target.parentNode.parentNode.id);
+    
     if (ulInfo.openIndex === null) {
       return;
     }
@@ -258,12 +275,18 @@ class DisclosureNav {
     }
 
     // handle menu at called index
-    if ((ulInfo.levelNodes)[index]) {
-      
+    if ((ulInfo.levelNodes)[index]) {      
       ulInfo.openIndex = expanded ? index : null;
       (ulInfo.levelNodes)[index].setAttribute('aria-expanded', expanded);
       
       this.toggleMenu(ulInfo.controlledNodes[index], expanded);
+      if (expanded) {
+        const subMenu = ulInfo.controlledNodes[index];
+        const focusableElement = subMenu.querySelectorAll('a');
+        if (focusableElement.length > 0) {
+          focusableElement[0].focus();
+        }
+      }
     }
   }
 
